@@ -1,9 +1,8 @@
 # llm_client.py
-from typing import Dict, List
+from typing import List, Dict
 from openai import OpenAI
 
-MAX_HISTORY_TURNS = 5  # Keep last N user+assistant pairs
-
+MAX_HISTORY_TURNS = 5  # only keep last N turns to prevent unbounded growth
 
 def generate_response(
     openai_key: str,
@@ -14,7 +13,7 @@ def generate_response(
 ) -> str:
     """
     Generate a NASA mission expert response using OpenAI, grounded in retrieved context.
-    Maintains pruned conversation history and cites sources per turn.
+    Maintains conversation history and prunes it to last MAX_HISTORY_TURNS.
     """
 
     # === SYSTEM PROMPT ===
@@ -29,26 +28,27 @@ def generate_response(
         "- Keep answers clear, concise, and educational."
     )
 
+    # === CREATE OPENAI CLIENT ===
     client = OpenAI(api_key=openai_key)
 
-    messages: List[Dict] = []
-    messages.append({"role": "system", "content": system_prompt})
+    # === BUILD MESSAGE HISTORY ===
+    messages: List[Dict] = [{"role": "system", "content": system_prompt}]
 
-    # Include context as a system message
+    # Add context as system message
     if context:
         messages.append({
             "role": "system",
             "content": f"Context to use for answering the question:\n{context}"
         })
 
-    # === PRUNE conversation history ===
-    # Keep only last MAX_HISTORY_TURNS user+assistant pairs
-    pruned_history = conversation_history[-MAX_HISTORY_TURNS*2:]  # each turn = user+assistant
-    for msg in pruned_history:
-        if "role" in msg and "content" in msg:
-            messages.append({"role": msg["role"], "content": msg["content"]})
+    # Prune conversation history to last N turns
+    history_to_use = conversation_history[-MAX_HISTORY_TURNS*2:]  # each turn = user + assistant
 
-    # Add current user question
+    for msg in history_to_use:
+        if "role" in msg and "content" in msg:
+            messages.append(msg)
+
+    # Add current user message
     messages.append({"role": "user", "content": user_message})
 
     # === CALL OPENAI ===
