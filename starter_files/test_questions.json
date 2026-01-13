@@ -1,10 +1,26 @@
 [
   {
-    "id": "q1",
-    "question": "What was the goal of the Apollo 11 mission?"
+    "id": 1,
+    "question": "What was the primary objective of the Apollo 11 mission?"
   },
   {
-    "id": "q2",
-    "question": "Which rover was used in the Mars Pathfinder mission?"
+    "id": 2,
+    "question": "Why did Apollo 13 fail to land on the Moon?"
+  },
+  {
+    "id": 3,
+    "question": "How did the Apollo 13 crew survive after the oxygen tank explosion?"
+  },
+  {
+    "id": 4,
+    "question": "What role did Mission Control play during the Apollo 13 crisis?"
+  },
+  {
+    "id": 5,
+    "question": "What caused the Space Shuttle Challenger disaster?"
+  },
+  {
+    "id": 6,
+    "question": "What lessons did NASA learn from the Challenger disaster?"
   }
 ]
