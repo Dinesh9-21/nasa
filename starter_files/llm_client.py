@@ -1,5 +1,9 @@
+# llm_client.py
 from typing import Dict, List
 from openai import OpenAI
+
+MAX_HISTORY_TURNS = 5  # Keep last N user+assistant pairs
+
 
 def generate_response(
     openai_key: str,
@@ -10,16 +14,7 @@ def generate_response(
 ) -> str:
     """
     Generate a NASA mission expert response using OpenAI, grounded in retrieved context.
-
-    Args:
-        openai_key: OpenAI API key
-        user_message: The user's question
-        context: Retrieved context from ChromaDB
-        conversation_history: List of previous messages (role + content)
-        model: OpenAI model to use
-
-    Returns:
-        Assistant response as a string
+    Maintains pruned conversation history and cites sources per turn.
     """
 
     # === SYSTEM PROMPT ===
@@ -34,40 +29,34 @@ def generate_response(
         "- Keep answers clear, concise, and educational."
     )
 
-    # === CREATE OPENAI CLIENT ===
     client = OpenAI(api_key=openai_key)
 
-    # === BUILD MESSAGE HISTORY ===
     messages: List[Dict] = []
-
-    # Add system prompt
     messages.append({"role": "system", "content": system_prompt})
 
-    # Add context if available
+    # Include context as a system message
     if context:
         messages.append({
             "role": "system",
             "content": f"Context to use for answering the question:\n{context}"
         })
 
-    # Append previous conversation history
-    for msg in conversation_history:
+    # === PRUNE conversation history ===
+    # Keep only last MAX_HISTORY_TURNS user+assistant pairs
+    pruned_history = conversation_history[-MAX_HISTORY_TURNS*2:]  # each turn = user+assistant
+    for msg in pruned_history:
         if "role" in msg and "content" in msg:
-            messages.append(msg)
+            messages.append({"role": msg["role"], "content": msg["content"]})
 
-    # Add the user question
-    messages.append({
-        "role": "user",
-        "content": user_message
-    })
+    # Add current user question
+    messages.append({"role": "user", "content": user_message})
 
     # === CALL OPENAI ===
     response = client.chat.completions.create(
         model=model,
         messages=messages,
-        temperature=0.3,  # Low creativity for factual answers
+        temperature=0.3,
         max_tokens=600
     )
 
-    # Return assistant content
     return response.choices[0].message.content
