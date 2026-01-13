@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 """
 Batch Evaluation Script for NASA RAG System
-
-Runs end-to-end evaluation on a test question set and computes
-per-question and aggregate RAGAS metrics.
 """
 
-import json
 import os
+import json
 import statistics
 from typing import List, Dict
 
@@ -18,13 +15,11 @@ import ragas_evaluator
 
 # ===================== CONFIGURATION =====================
 
-TEST_QUESTIONS_FILE = "test_questions.json"
+TEST_QUESTIONS_FILE = "evaluation_dataset.txt"
 N_RESULTS = 3
 MODEL_NAME = "gpt-3.5-turbo"
 
-# Set OpenAI key via env variable
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
 if not OPENAI_API_KEY:
     raise RuntimeError("Please set OPENAI_API_KEY environment variable")
 
@@ -32,12 +27,20 @@ if not OPENAI_API_KEY:
 # ===================== HELPERS =====================
 
 def load_test_questions(path: str) -> List[Dict]:
+    questions = []
     with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        for line in f:
+            line = line.strip()
+            if line:
+                questions.append({"question": line})
+
+    if len(questions) < 5:
+        raise ValueError("Evaluation dataset must contain at least 5 questions")
+
+    return questions
 
 
 def aggregate_metrics(results: List[Dict]) -> Dict[str, float]:
-    """Compute mean score per metric"""
     aggregates = {}
 
     for result in results:
@@ -52,23 +55,19 @@ def aggregate_metrics(results: List[Dict]) -> Dict[str, float]:
     }
 
 
-# ===================== MAIN EVALUATION =====================
+# ===================== MAIN =====================
 
 def main():
-    print("🚀 Starting batch evaluation...")
+    print("🚀 Starting batch evaluation")
 
-    # Load test questions
     questions = load_test_questions(TEST_QUESTIONS_FILE)
-    print(f"Loaded {len(questions)} test questions")
+    print(f"Loaded {len(questions)} evaluation questions")
 
-    # Discover and initialize first available Chroma backend
     backends = rag_client.discover_chroma_backends()
     if not backends:
         raise RuntimeError("No ChromaDB backends found")
 
-    backend_key = list(backends.keys())[0]
-    backend = backends[backend_key]
-
+    backend = list(backends.values())[0]
     print(f"Using backend: {backend['display_name']}")
 
     collection = rag_client.initialize_rag_system(
@@ -78,26 +77,24 @@ def main():
 
     per_question_results = []
 
-    # ===================== LOOP =====================
-    for item in questions:
-        qid = item.get("id", "unknown")
+    for idx, item in enumerate(questions, start=1):
         question = item["question"]
+        print(f"\n🔍 Question {idx}: {question}")
 
-        print(f"\n🔍 Question {qid}: {question}")
-
-        # Retrieve documents
         retrieval = rag_client.retrieve_documents(
             collection,
             question,
             n_results=N_RESULTS
         )
 
+        if not retrieval or not retrieval.get("documents"):
+            print("⚠️ No documents retrieved, skipping")
+            continue
+
         documents = retrieval["documents"][0]
         metadatas = retrieval["metadatas"][0]
-
         context = rag_client.format_context(documents, metadatas)
 
-        # Generate answer
         answer = llm_client.generate_response(
             openai_key=OPENAI_API_KEY,
             user_message=question,
@@ -106,15 +103,16 @@ def main():
             model=MODEL_NAME
         )
 
-        # Evaluate answer
-        metrics = ragas_evaluator.evaluate_response_quality(
-            question=question,
-            answer=answer,
-            contexts=documents
-        )
+        try:
+            metrics = ragas_evaluator.evaluate_response_quality(
+                question=question,
+                answer=answer,
+                contexts=documents
+            )
+        except Exception as e:
+            metrics = {"error": str(e)}
 
         per_question_results.append({
-            "id": qid,
             "question": question,
             "answer": answer,
             "metrics": metrics
@@ -122,25 +120,23 @@ def main():
 
         print("Metrics:", metrics)
 
-    # ===================== AGGREGATION =====================
-
     aggregate = aggregate_metrics(per_question_results)
 
     print("\n📊 Aggregate Metrics")
     for metric, score in aggregate.items():
         print(f"{metric}: {score:.4f}")
 
-    # Save results
-    output = {
-        "per_question": per_question_results,
-        "aggregate": aggregate
-    }
-
     with open("batch_evaluation_results.json", "w", encoding="utf-8") as f:
-        json.dump(output, f, indent=2)
+        json.dump(
+            {
+                "per_question": per_question_results,
+                "aggregate": aggregate
+            },
+            f,
+            indent=2
+        )
 
     print("\n✅ Batch evaluation complete")
-    print("Results saved to batch_evaluation_results.json")
 
 
 if __name__ == "__main__":
