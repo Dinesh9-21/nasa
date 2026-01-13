@@ -1,133 +1,95 @@
-import chromadb
-from chromadb.config import Settings
-from typing import Dict, List, Optional
+# rag_client.py
+from typing import List, Dict, Optional
 from pathlib import Path
+import chromadb
+from chromadb.utils import embedding_functions
 
+# ------------------ CONFIG ------------------
+DEFAULT_CHROMA_DIR = Path("chroma_db")
+DEFAULT_COLLECTION_NAME = "nasa_missions"
 
-def discover_chroma_backends() -> Dict[str, Dict[str, str]]:
-    """Discover available ChromaDB backends in the project directory"""
-    backends: Dict[str, Dict[str, str]] = {}
-    current_dir = Path(".")
+# ------------------ BACKEND DISCOVERY ------------------
 
-    # Look for directories that likely contain ChromaDB data
-    candidate_dirs = [
-        d for d in current_dir.iterdir()
-        if d.is_dir() and not d.name.startswith(".")
-    ]
+def discover_chroma_backends(chroma_dir: Optional[Path] = None) -> Dict[str, Dict]:
+    """
+    Discover available ChromaDB backends.
+    Returns dict {backend_name: {"display_name": str, "path": Path, "collection": str}}
+    """
+    chroma_dir = chroma_dir or DEFAULT_CHROMA_DIR
+    backends = {}
 
-    for directory in candidate_dirs:
-        try:
-            # Attempt to connect to ChromaDB directory
-            client = chromadb.Client(
-                Settings(
-                    persist_directory=str(directory),
-                    anonymized_telemetry=False
-                )
-            )
+    if not chroma_dir.exists():
+        chroma_dir.mkdir(parents=True)
 
-            collections = client.list_collections()
-
-            for collection in collections:
-                key = f"{directory.name}/{collection.name}"
-
-                # Safely get document count
-                try:
-                    count = collection.count()
-                except Exception:
-                    count = "unknown"
-
-                backends[key] = {
-                    "path": str(directory),
-                    "collection": collection.name,
-                    "display_name": f"{directory.name} → {collection.name} ({count} docs)",
-                    "document_count": count
-                }
-
-        except Exception as e:
-            # Graceful fallback for unreadable directories
-            error_msg = str(e)
-            truncated_error = (
-                error_msg[:60] + "..."
-                if len(error_msg) > 60
-                else error_msg
-            )
-
-            backends[directory.name] = {
-                "path": str(directory),
-                "collection": "N/A",
-                "display_name": f"{directory.name} (error: {truncated_error})",
-                "document_count": "N/A"
-            }
-
+    backend_name = "local_chroma"
+    backends[backend_name] = {
+        "display_name": "Local ChromaDB",
+        "path": str(chroma_dir),
+        "collection": DEFAULT_COLLECTION_NAME
+    }
     return backends
 
+# ------------------ RAG SYSTEM INITIALIZATION ------------------
 
 def initialize_rag_system(chroma_dir: str, collection_name: str):
-    """Initialize the RAG system with specified backend (cached for performance)"""
+    """
+    Initialize Chroma collection for NASA RAG system.
+    """
+    client = chromadb.Client(chromadb.config.Settings(
+        chroma_db_impl="duckdb+parquet",
+        persist_directory=chroma_dir
+    ))
 
-    client = chromadb.Client(
-        Settings(
-            persist_directory=chroma_dir,
-            anonymized_telemetry=False
+    if collection_name in [c.name for c in client.list_collections()]:
+        collection = client.get_collection(collection_name)
+    else:
+        collection = client.create_collection(
+            name=collection_name,
+            embedding_function=embedding_functions.OpenAIEmbeddingFunction(
+                api_key=None, model_name="text-embedding-3-small"
+            )
         )
-    )
 
-    return client.get_collection(collection_name)
+    return collection
 
+# ------------------ DOCUMENT RETRIEVAL ------------------
 
-def retrieve_documents(
-    collection,
-    query: str,
-    n_results: int = 3,
-    mission_filter: Optional[str] = None
-) -> Optional[Dict]:
-    """Retrieve relevant documents from ChromaDB with optional filtering"""
+def retrieve_documents(collection, query: str, n_results: int = 3) -> Dict[str, List[List]]:
+    """
+    Perform semantic retrieval from ChromaDB.
+    Returns dict with 'documents' and 'metadatas' lists.
+    """
+    try:
+        results = collection.query(
+            query_texts=[query],
+            n_results=n_results
+        )
+        documents = results.get("documents", [[]])
+        metadatas = results.get("metadatas", [[]])
 
-    where_filter = None
+        # Ensure lists exist
+        if not documents:
+            documents = [[]]
+        if not metadatas:
+            metadatas = [[]]
 
-    if mission_filter and mission_filter.lower() not in {"all", "any"}:
-        where_filter = {"mission": mission_filter}
+        return {"documents": documents, "metadatas": metadatas}
 
-    results = collection.query(
-        query_texts=[query],
-        n_results=n_results,
-        where=where_filter
-    )
+    except Exception as e:
+        print(f"⚠️ Error during document retrieval: {e}")
+        return {"documents": [[]], "metadatas": [[]]}
 
-    return results
-
+# ------------------ CONTEXT FORMATTING ------------------
 
 def format_context(documents: List[str], metadatas: List[Dict]) -> str:
-    """Format retrieved documents into context with explicit DOC_IDs"""
-    if not documents:
-        return ""
+    """
+    Combine retrieved documents into a single context string with source attributions.
+    """
+    context_list = []
 
-    context_parts = ["### Retrieved NASA Context\n"]
+    for i, doc in enumerate(documents):
+        meta = metadatas[i] if i < len(metadatas) else {}
+        source = meta.get("source", f"DOC_{i+1}")
+        context_list.append(f"[{source}]\n{doc}")
 
-    for idx, (doc, meta) in enumerate(zip(documents, metadatas), start=1):
-        doc_id = (
-            meta.get("doc_id")
-            or meta.get("source")
-            or f"DOC_{idx}"
-        )
-        mission = meta.get("mission", "unknown mission").replace("_", " ").title()
-        category = meta.get("category", "general").replace("_", " ").title()
-
-        header = (
-            f"[Source {idx}] "
-            f"Mission: {mission} | "
-            f"Category: {category} | "
-            f"Source: {source}"
-        )
-
-        context_parts.append(header)
-
-        # Truncate overly long documents
-        max_length = 1200
-        if len(doc) > max_length:
-            doc = doc[:max_length].rstrip() + "..."
-
-        context_parts.append(doc)
-        context_parts.append("")  # spacer line
-
-    return "\n".join(context_parts)
+    return "\n\n".join(context_list)
