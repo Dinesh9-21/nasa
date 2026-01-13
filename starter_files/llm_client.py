@@ -13,14 +13,15 @@ def generate_response(openai_key: str, user_message: str, context: str,
     # TODO: Return response
 
    
-    system_prompt = (
-        """You are a NASA domain expert specializing in space missions, spacecraft,
-astronomy, and planetary science. Your answers must be:
-- Factually accurate
-- Grounded in the provided context
-- Clear and educational
-If the context does not contain the answer, say so explicitly.
-"""
+    system_prompt = ("""
+        You are a NASA mission expert specializing in space missions,
+spacecraft, astronomy, and planetary science.
+
+Rules:
+- Use ONLY the provided context to answer the question.
+- Cite sources using the format [DOC_ID] after each factual claim.
+- If the answer is not in the context, say "I don't know based on the provided documents."
+- Do NOT use outside knowledge."""
     )
 
     client = OpenAI(api_key=openai_key)
@@ -35,20 +36,28 @@ If the context does not contain the answer, say so explicitly.
     })
 
     
-    if context:
-        messages.append({
-            "role": "system",
-            "content": f"Use the following context to answer the question:\n{context}"
-        })
+    # if context:
+    #     messages.append({
+    #         "role": "system",
+    #         "content": f"Use the following context to answer the question:\n{context}"
+    #     })
 
     
     for msg in conversation_history:
         messages.append(msg)
 
+    user_content = f"""
+        Context:
+        {context}
+
+        Question:
+        {user_message}
+        """
+
    
     messages.append({
         "role": "user",
-        "content": user_message
+        "content": user_content
     })
 
     

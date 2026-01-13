@@ -98,20 +98,20 @@ def retrieve_documents(
 
 
 def format_context(documents: List[str], metadatas: List[Dict]) -> str:
-    """Format retrieved documents into context"""
+    """Format retrieved documents into context with explicit DOC_IDs"""
     if not documents:
         return ""
 
     context_parts = ["### Retrieved NASA Context\n"]
 
     for idx, (doc, meta) in enumerate(zip(documents, metadatas), start=1):
-        mission = meta.get("mission", "unknown mission")
-        mission = mission.replace("_", " ").title()
-
-        source = meta.get("source", "unknown source")
-
-        category = meta.get("category", "general")
-        category = category.replace("_", " ").title()
+        doc_id = (
+            meta.get("doc_id")
+            or meta.get("source")
+            or f"DOC_{idx}"
+        )
+        mission = meta.get("mission", "unknown mission").replace("_", " ").title()
+        category = meta.get("category", "general").replace("_", " ").title()
 
         header = (
             f"[Source {idx}] "
