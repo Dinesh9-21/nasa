@@ -1,0 +1,56 @@
+EVALUATION DATASET
+NASA RAG SYSTEM – SAMPLE QUESTIONS & EXPECTED RESPONSES
+=======================================================
+
+Mission Coverage:
+- Apollo 11
+- Apollo 13
+- Space Shuttle Challenger
+
+-------------------------------------------------------
+Question 1:
+What was the primary objective of the Apollo 11 mission?
+
+Expected Response:
+The primary objective of Apollo 11 was to perform the first crewed lunar landing and safely return the astronauts to Earth. The mission aimed to land Neil Armstrong and Buzz Aldrin on the Moon, conduct surface exploration and experiments, and demonstrate the capability of human spaceflight to another celestial body.
+
+-------------------------------------------------------
+Question 2:
+Why did Apollo 13 fail to land on the Moon?
+
+Expected Response:
+Apollo 13 failed to land on the Moon due to an explosion in one of the spacecraft’s oxygen tanks. The explosion caused a loss of oxygen and electrical power in the command module, forcing NASA to abort the lunar landing and focus on safely returning the crew to Earth.
+
+-------------------------------------------------------
+Question 3:
+How did the Apollo 13 crew survive after the oxygen tank explosion?
+
+Expected Response:
+After the oxygen tank explosion, the Apollo 13 crew used the lunar module as a lifeboat. They powered down the command module to conserve energy, relied on the lunar module’s systems for life support, and followed emergency procedures developed by mission control to safely return to Earth.
+
+-------------------------------------------------------
+Question 4:
+What role did Mission Control play during the Apollo 13 crisis?
+
+Expected Response:
+Mission Control played a critical role during the Apollo 13 crisis by rapidly diagnosing the spacecraft failure, developing real-time problem-solving strategies, and guiding the crew through complex procedures. Their coordinated efforts were essential in conserving power, managing life support, and ensuring the crew’s safe return.
+
+-------------------------------------------------------
+Question 5:
+What caused the Space Shuttle Challenger disaster?
+
+Expected Response:
+The Space Shuttle Challenger disaster was caused by the failure of an O-ring seal in one of the solid rocket boosters. Cold temperatures on the day of launch compromised the seal, allowing hot gases to escape and ultimately leading to the destruction of the shuttle shortly after liftoff.
+
+-------------------------------------------------------
+Question 6:
+What lessons did NASA learn from the Challenger disaster?
+
+Expected Response:
+NASA learned critical lessons from the Challenger disaster regarding engineering safety, risk assessment, and organizational decision-making. The accident highlighted the dangers of ignoring engineering concerns, the importance of clear communication, and the need to prioritize safety over schedule pressures.
+
+-------------------------------------------------------
+Evaluation Notes:
+- Answers should be factually grounded in retrieved NASA documents.
+- Responses should reference mission-specific details where applicable.
+- High-quality answers score well on faithfulness and relevancy in RAGAS.
