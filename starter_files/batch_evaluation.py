@@ -6,16 +6,18 @@ Batch Evaluation Script for NASA RAG System
 import os
 import json
 import statistics
+from pathlib import Path
 from typing import List, Dict
 
 import rag_client
 import llm_client
 import ragas_evaluator
 
-
 # ===================== CONFIGURATION =====================
 
-TEST_QUESTIONS_FILE = "evaluation_dataset.txt"
+SCRIPT_DIR = Path(__file__).parent
+
+TEST_QUESTIONS_FILE = SCRIPT_DIR / "test_questions.json"
 N_RESULTS = 3
 MODEL_NAME = "gpt-3.5-turbo"
 
@@ -23,16 +25,15 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise RuntimeError("Please set OPENAI_API_KEY environment variable")
 
-
 # ===================== HELPERS =====================
 
-def load_test_questions(path: str) -> List[Dict]:
-    questions = []
+def load_test_questions(path: Path) -> List[Dict]:
+    """Load questions from JSON file."""
+    if not path.exists():
+        raise FileNotFoundError(f"Test questions file not found: {path}")
+
     with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                questions.append({"question": line})
+        questions = json.load(f)
 
     if len(questions) < 5:
         raise ValueError("Evaluation dataset must contain at least 5 questions")
@@ -41,10 +42,10 @@ def load_test_questions(path: str) -> List[Dict]:
 
 
 def aggregate_metrics(results: List[Dict]) -> Dict[str, float]:
+    """Compute mean score per metric."""
     aggregates = {}
-
     for result in results:
-        for metric, value in result["metrics"].items():
+        for metric, value in result.get("metrics", {}).items():
             if isinstance(value, (int, float)):
                 aggregates.setdefault(metric, []).append(value)
 
@@ -53,7 +54,6 @@ def aggregate_metrics(results: List[Dict]) -> Dict[str, float]:
         for metric, values in aggregates.items()
         if values
     }
-
 
 # ===================== MAIN =====================
 
@@ -93,13 +93,18 @@ def main():
 
         documents = retrieval["documents"][0]
         metadatas = retrieval["metadatas"][0]
+
+        # Ensure source exists for all metadata
+        for meta in metadatas:
+            meta.setdefault("source", "unknown source")
+
         context = rag_client.format_context(documents, metadatas)
 
         answer = llm_client.generate_response(
             openai_key=OPENAI_API_KEY,
             user_message=question,
             context=context,
-            conversation_history=[],
+            conversation_history=[],  # start fresh for evaluation
             model=MODEL_NAME
         )
 
@@ -120,24 +125,21 @@ def main():
 
         print("Metrics:", metrics)
 
+    # Aggregate metrics
     aggregate = aggregate_metrics(per_question_results)
 
     print("\n📊 Aggregate Metrics")
     for metric, score in aggregate.items():
         print(f"{metric}: {score:.4f}")
 
-    with open("batch_evaluation_results.json", "w", encoding="utf-8") as f:
-        json.dump(
-            {
-                "per_question": per_question_results,
-                "aggregate": aggregate
-            },
-            f,
-            indent=2
-        )
+    # Save results
+    with open(SCRIPT_DIR / "batch_evaluation_results.json", "w", encoding="utf-8") as f:
+        json.dump({
+            "per_question": per_question_results,
+            "aggregate": aggregate
+        }, f, indent=2)
 
     print("\n✅ Batch evaluation complete")
-
 
 if __name__ == "__main__":
     main()
